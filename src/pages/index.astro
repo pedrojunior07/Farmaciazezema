@@ -1,0 +1,168 @@
+---
+import { getEntry } from "astro:content";
+import Alert from "../components/Alert.astro";
+import Guide from "../components/Guide.astro";
+import Layout from "../components/Layout.astro";
+import TableRow from "../components/TableRow.astro";
+import { supabase } from "../utils/database";
+
+export const prerender = false; 
+
+// Initialize variables for each table
+let clientes;
+let produtos;
+let vendas;
+let itensVenda;
+let usuarios;
+let dbError;
+
+// Fetch data from Supabase if connection is set up
+if (supabase) {
+  try {
+    // Fetch all tables data
+    const [
+      { data: clientesData, error: clientesError },
+      { data: produtosData, error: produtosError },
+      { data: vendasData, error: vendasError },
+      { data: itensVendaData, error: itensVendaError },
+      { data: usuariosData, error: usuariosError }
+    ] = await Promise.all([
+      supabase.from("clientes").select("*").order("created_at", { ascending: false }),
+      supabase.from("produtos").select("*").order("created_at", { ascending: false }),
+      supabase.from("vendas").select("*").order("data_venda", { ascending: false }),
+      supabase.from("itens_venda").select("*"),
+      supabase.from("usuarios").select("*")
+    ]);
+
+    clientes = clientesData;
+    produtos = produtosData;
+    vendas = vendasData;
+    itensVenda = itensVendaData;
+    usuarios = usuariosData;
+
+    // Check for any errors
+    dbError = clientesError || produtosError || vendasError || itensVendaError || usuariosError;
+    
+  } catch (error) {
+    dbError = error;
+  }
+}
+
+// Get guides
+const connectGuide = await getEntry("guides", "guide-connect-supabase");
+const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
+---
+
+<Layout title="Sistema de Vendas">
+  {
+    supabase ? (
+      !dbError ? (
+        <div class="grid grid-cols-1 gap-8">
+          <!-- Clientes Section -->
+          <section>
+            <h2 class="mb-4 text-2xl font-bold">Clientes</h2>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="font-mono text-base border-t border-b">
+                    <th class="p-2">Nome</th>
+                    <th class="p-2">Telefone</th>
+                    <th class="p-2">Endereço</th>
+                    <th class="p-2">NUIT</th>
+                    <th class="p-2">Data Cadastro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientes?.map((cliente) => (
+                    <tr key={cliente.id} class="border-b hover:bg-gray-50">
+                      <td class="p-2">{cliente.nome}</td>
+                      <td class="p-2">{cliente.telefone}</td>
+                      <td class="p-2">{cliente.endereco}</td>
+                      <td class="p-2">{cliente.nuit}</td>
+                      <td class="p-2">{new Date(cliente.created_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Produtos Section -->
+          <section>
+            <h2 class="mb-4 text-2xl font-bold">Produtos</h2>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="font-mono text-base border-t border-b">
+                    <th class="p-2">Nome</th>
+                    <th class="p-2">Preço</th>
+                    <th class="p-2">Quantidade</th>
+                    <th class="p-2">Categoria</th>
+                    <th class="p-2">Fabricante</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {produtos?.map((produto) => (
+                    <tr key={produto.id} class="border-b hover:bg-gray-50">
+                      <td class="p-2">{produto.nome}</td>
+                      <td class="p-2">{produto.preco.toFixed(2)}</td>
+                      <td class="p-2">{produto.quantidade}</td>
+                      <td class="p-2">{produto.categoria}</td>
+                      <td class="p-2">{produto.fabricante}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- Vendas Section -->
+          <section>
+            <h2 class="mb-4 text-2xl font-bold">Vendas</h2>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="font-mono text-base border-t border-b">
+                    <th class="p-2">ID</th>
+                    <th class="p-2">Cliente</th>
+                    <th class="p-2">Data</th>
+                    <th class="p-2">Valor Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendas?.map((venda) => {
+                    const cliente = clientes.find(c => c.id === venda.cliente_id);
+                    return (
+                      <tr key={venda.id} class="border-b hover:bg-gray-50">
+                        <td class="p-2">{venda.id}</td>
+                        <td class="p-2">{cliente ? cliente.nome : 'Cliente não encontrado'}</td>
+                        <td class="p-2">{new Date(venda.data_venda).toLocaleString()}</td>
+                        <td class="p-2">{venda.valor_total.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      ) : (
+        <>
+          {dbError && (
+            <Alert
+              title="Erro no Banco de Dados"
+              text={dbError.message}
+              variant="error"
+            />
+          )}
+          {fetchDataGuide && <Guide guide={fetchDataGuide} />}
+        </>
+      )
+    ) : (
+      <>
+        <Alert title="Configure seu banco de dados" text="Antes de continuar, você precisa completar os passos do guia abaixo para criar, popular e conectar seu banco de dados Supabase."/>
+        {connectGuide && <Guide guide={connectGuide} />}
+      </>
+    )
+  }
+</Layout>
