@@ -3,23 +3,59 @@ import { getEntry } from "astro:content";
 import Alert from "../components/Alert.astro";
 import Guide from "../components/Guide.astro";
 import Layout from "../components/Layout.astro";
-import TableRow from "../components/TableRow.astro";
 import { supabase } from "../utils/database";
 
-export const prerender = false; 
+// Tipos explícitos
+interface Cliente {
+  id: number;
+  nome: string;
+  telefone: string;
+  endereco: string;
+  nuit: string;
+  created_at: string;
+}
 
-// Initialize variables for each table
-let clientes;
-let produtos;
-let vendas;
-let itensVenda;
-let usuarios;
-let dbError;
+interface Produto {
+  id: number;
+  nome: string;
+  preco: number;
+  quantidade: number;
+  categoria: string;
+  fabricante: string;
+}
 
-// Fetch data from Supabase if connection is set up
+interface Venda {
+  id: number;
+  cliente_id: number;
+  data_venda: string;
+  valor_total: number;
+}
+
+interface Usuario {
+  id: number;
+  nome: string;
+}
+
+interface ItemVenda {
+  id: number;
+  venda_id: number;
+  produto_id: number;
+  quantidade: number;
+}
+
+// Declaração das variáveis com tipos
+let clientes: Cliente[] = [];
+let produtos: Produto[] = [];
+let vendas: Venda[] = [];
+let itensVenda: ItemVenda[] = [];
+let usuarios: Usuario[] = [];
+let dbError: any = null;
+
+export const prerender = false;
+
+// Busca os dados do Supabase
 if (supabase) {
   try {
-    // Fetch all tables data
     const [
       { data: clientesData, error: clientesError },
       { data: produtosData, error: produtosError },
@@ -27,28 +63,27 @@ if (supabase) {
       { data: itensVendaData, error: itensVendaError },
       { data: usuariosData, error: usuariosError }
     ] = await Promise.all([
-      supabase.from("clientes").select("*").order("created_at", { ascending: false }),
-      supabase.from("produtos").select("*").order("created_at", { ascending: false }),
-      supabase.from("vendas").select("*").order("data_venda", { ascending: false }),
-      supabase.from("itens_venda").select("*"),
-      supabase.from("usuarios").select("*")
+      supabase.from<Cliente>("clientes").select("*").order("created_at", { ascending: false }),
+      supabase.from<Produto>("produtos").select("*").order("created_at", { ascending: false }),
+      supabase.from<Venda>("vendas").select("*").order("data_venda", { ascending: false }),
+      supabase.from<ItemVenda>("itens_venda").select("*"),
+      supabase.from<Usuario>("usuarios").select("*")
     ]);
 
-    clientes = clientesData;
-    produtos = produtosData;
-    vendas = vendasData;
-    itensVenda = itensVendaData;
-    usuarios = usuariosData;
+    clientes = clientesData || [];
+    produtos = produtosData || [];
+    vendas = vendasData || [];
+    itensVenda = itensVendaData || [];
+    usuarios = usuariosData || [];
 
-    // Check for any errors
     dbError = clientesError || produtosError || vendasError || itensVendaError || usuariosError;
-    
+
   } catch (error) {
     dbError = error;
   }
 }
 
-// Get guides
+// Carrega os guias
 const connectGuide = await getEntry("guides", "guide-connect-supabase");
 const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
 ---
@@ -58,7 +93,8 @@ const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
     supabase ? (
       !dbError ? (
         <div class="grid grid-cols-1 gap-8">
-          <!-- Clientes Section -->
+          
+          <!-- Clientes -->
           <section>
             <h2 class="mb-4 text-2xl font-bold">Clientes</h2>
             <div class="overflow-x-auto">
@@ -73,7 +109,7 @@ const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
                   </tr>
                 </thead>
                 <tbody>
-                  {clientes?.map((cliente) => (
+                  {clientes.map((cliente) => (
                     <tr key={cliente.id} class="border-b hover:bg-gray-50">
                       <td class="p-2">{cliente.nome}</td>
                       <td class="p-2">{cliente.telefone}</td>
@@ -87,7 +123,7 @@ const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
             </div>
           </section>
 
-          <!-- Produtos Section -->
+          <!-- Produtos -->
           <section>
             <h2 class="mb-4 text-2xl font-bold">Produtos</h2>
             <div class="overflow-x-auto">
@@ -102,7 +138,7 @@ const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
                   </tr>
                 </thead>
                 <tbody>
-                  {produtos?.map((produto) => (
+                  {produtos.map((produto) => (
                     <tr key={produto.id} class="border-b hover:bg-gray-50">
                       <td class="p-2">{produto.nome}</td>
                       <td class="p-2">{produto.preco.toFixed(2)}</td>
@@ -116,7 +152,7 @@ const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
             </div>
           </section>
 
-          <!-- Vendas Section -->
+          <!-- Vendas -->
           <section>
             <h2 class="mb-4 text-2xl font-bold">Vendas</h2>
             <div class="overflow-x-auto">
@@ -130,7 +166,7 @@ const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
                   </tr>
                 </thead>
                 <tbody>
-                  {vendas?.map((venda) => {
+                  {vendas.map((venda) => {
                     const cliente = clientes.find(c => c.id === venda.cliente_id);
                     return (
                       <tr key={venda.id} class="border-b hover:bg-gray-50">
@@ -148,19 +184,20 @@ const fetchDataGuide = await getEntry("guides", "guide-fetch-data");
         </div>
       ) : (
         <>
-          {dbError && (
-            <Alert
-              title="Erro no Banco de Dados"
-              text={dbError.message}
-              variant="error"
-            />
-          )}
+          <Alert
+            title="Erro no Banco de Dados"
+            text={dbError?.message || 'Erro desconhecido.'}
+            variant="error"
+          />
           {fetchDataGuide && <Guide guide={fetchDataGuide} />}
         </>
       )
     ) : (
       <>
-        <Alert title="Configure seu banco de dados" text="Antes de continuar, você precisa completar os passos do guia abaixo para criar, popular e conectar seu banco de dados Supabase."/>
+        <Alert
+          title="Configure seu banco de dados"
+          text="Antes de continuar, você precisa completar os passos do guia abaixo para criar, popular e conectar seu banco de dados Supabase."
+        />
         {connectGuide && <Guide guide={connectGuide} />}
       </>
     )
